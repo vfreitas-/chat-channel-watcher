@@ -1,13 +1,13 @@
-package com.example;
+package com.chatchannelwatcher;
 
 import net.runelite.client.RuneLite;
 import net.runelite.client.externalplugins.ExternalPluginManager;
 
-public class ExamplePluginTest
+public class ChatChannelWatcherPluginTest
 {
 	public static void main(String[] args) throws Exception
 	{
-		ExternalPluginManager.loadBuiltin(ExamplePlugin.class);
+		ExternalPluginManager.loadBuiltin(ChatChannelWatcherPlugin.class);
 		RuneLite.main(args);
 	}
 }
