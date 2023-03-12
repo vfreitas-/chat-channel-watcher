@@ -5,13 +5,15 @@ import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
 
+import java.awt.*;
+
 @ConfigGroup("chatchannelwatcher")
 public interface ChatChannelWatcherConfig extends Config
 {
 	@ConfigItem(
 			position = 0,
 			keyName = "joinnotification",
-			name = "Custom Join Notification",
+			name = "Join Notification",
 			description = "The message to notify with when a player on the list joins ({player} resolves to joining player)"
 	)
 	default String joinNotification()
@@ -22,7 +24,7 @@ public interface ChatChannelWatcherConfig extends Config
 	@ConfigItem(
 			position = 1,
 			keyName = "leavenotification",
-			name = "Custom Leave Notification",
+			name = "Leave Notification",
 			description = "The message to notify with when a player on the list leaves (({player} resolves to leaving player)"
 	)
 	default String leaveNotification()
@@ -32,22 +34,22 @@ public interface ChatChannelWatcherConfig extends Config
 
 	@ConfigItem(
 			position =  2,
-			keyName = "joinnotificationenabled",
-			name = "Join Notification",
-			description = "Whether or not to notify on join"
+			keyName = "friendchat",
+			name = "Friend Chat",
+			description = "Toggles notifications on your current friends chat"
 	)
-	default boolean joinNotificationEnabled()
+	default boolean friendChatNotification()
 	{
 		return true;
 	}
 
 	@ConfigItem(
 			position = 3,
-			keyName = "leavenotificationenabled",
-			name = "Leave Notification",
-			description = "Whether or not to notify on leave"
+			keyName = "clanchat",
+			name = "Clan Chat",
+			description = "Toggles notifications on your current clan chat"
 	)
-	default boolean leaveNotificationEnabled()
+	default boolean clanChatNotification()
 	{
 		return true;
 	}
@@ -82,8 +84,62 @@ public interface ChatChannelWatcherConfig extends Config
 		return true;
 	}
 
-	@ConfigSection(
+	@ConfigItem(
 			position = 7,
+			keyName = "highlight",
+			name = "Highlight Players",
+			description = "Enable this to highlight any players in your player list in the chat-channel widget"
+	)
+	default boolean highlight()
+	{
+		return true;
+	}
+
+	@ConfigItem(
+			position = 8,
+			keyName = "highlightcolour",
+			name = "Highlight Colour",
+			description = "The colour you would like the players in your player list to appear as in your chat-channel"
+	)
+	default Color highlightColour()
+	{
+		return Color.RED;
+	}
+
+	@ConfigSection(
+			position = 9,
+			name = "API Info",
+			description = "Info related to API Configuration",
+			closedByDefault = true
+	)
+	String apiInfo = "apiInfo";
+
+	@ConfigItem(
+			position = 10,
+			keyName = "apiurl",
+			name = "API URL",
+			description = "Optional URL to send a POST request to containing the RSN, whether they have left or joined and a timestamp in JSON format",
+			section = apiInfo
+	)
+	default String apiUrl()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+			position = 11,
+			keyName = "bearertoken",
+			name = "Bearer Token",
+			description = "Authorization token for API",
+			section = apiInfo
+	)
+	default String bearerToken()
+	{
+		return "";
+	}
+
+	@ConfigSection(
+			position = 12,
 			name = "Player List",
 			description = "List of player names",
 			closedByDefault = true
@@ -91,7 +147,7 @@ public interface ChatChannelWatcherConfig extends Config
 	String playerLists = "playerLists";
 
 	@ConfigItem(
-			position = 8,
+			position = 13,
 			keyName = "playerlist",
 			name = "List",
 			description = "List of player names to be notified about (new-line separated)",
