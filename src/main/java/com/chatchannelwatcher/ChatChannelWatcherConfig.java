@@ -116,18 +116,30 @@ public interface ChatChannelWatcherConfig extends Config
 
 	@ConfigItem(
 			position = 10,
-			keyName = "apiurl",
-			name = "API URL",
+			keyName = "postapiurl",
+			name = "Join/Leave API Endpoint",
 			description = "Optional URL to send a POST request to containing the RSN, whether they have left or joined and a timestamp in JSON format",
 			section = apiInfo
 	)
-	default String apiUrl()
+	default String postApiURL()
 	{
 		return "";
 	}
 
 	@ConfigItem(
 			position = 11,
+			keyName = "getapiurl",
+			name = "Player List API Endpoint",
+			description = "Optional URL to send a GET request to fetch a list of players to populate the player list with (expecting JSON)",
+			section = apiInfo
+	)
+	default String getApiURL()
+	{
+		return "";
+	}
+
+	@ConfigItem(
+			position = 12,
 			keyName = "bearertoken",
 			name = "Bearer Token",
 			description = "Authorization token for API",
@@ -139,7 +151,7 @@ public interface ChatChannelWatcherConfig extends Config
 	}
 
 	@ConfigSection(
-			position = 12,
+			position = 13,
 			name = "Player List",
 			description = "List of player names",
 			closedByDefault = true
@@ -147,7 +159,7 @@ public interface ChatChannelWatcherConfig extends Config
 	String playerLists = "playerLists";
 
 	@ConfigItem(
-			position = 13,
+			position = 14,
 			keyName = "playerlist",
 			name = "List",
 			description = "List of player names to be notified about (new-line separated)",

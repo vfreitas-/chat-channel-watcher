@@ -19,7 +19,6 @@ import net.runelite.client.plugins.PluginDescriptor;
 import okhttp3.*;
 
 import java.awt.Color;
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -35,6 +34,9 @@ public class ChatChannelWatcherPlugin extends Plugin
 	private Notifier notifier;
 
 	@Inject
+	private ConfigManager configManager;
+
+	@Inject
 	private Client client;
 
 	@Inject
@@ -45,7 +47,8 @@ public class ChatChannelWatcherPlugin extends Plugin
 
 	@Inject
 	private OkHttpClient httpClient;
-	public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
+
+	public long lastGetUpdate = 0;
 
 	HashMap<String, Integer> lastNotification = new HashMap<>();
 
@@ -87,6 +90,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 	public void onFriendsChatMemberJoined(FriendsChatMemberJoined member)
 	{
 		if (!config.friendChatNotification()) return;
+		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
 		String joinerName = member.getMember().getName().toLowerCase().replace('\u00A0', ' ');
 		String joinerPrevName = "";
@@ -100,6 +104,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 	public void onFriendsChatMemberLeft(FriendsChatMemberLeft member)
 	{
 		if (!config.friendChatNotification()) return;
+		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
 		String leaverName = member.getMember().getName().toLowerCase().replace('\u00A0', ' ');
 		String leaverPrevName = "";
@@ -112,6 +117,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 	public void onClanMemberJoined(ClanMemberJoined clanMemberJoined)
 	{
 		if (!config.clanChatNotification()) return;
+		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
 		String joinerName = clanMemberJoined.getClanMember().getName().toLowerCase().replace('\u00A0', ' ');
 		String joinerPrevName = "";
@@ -124,6 +130,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 	public void onClanMemberLeft(ClanMemberLeft clanMemberLeft)
 	{
 		if (!config.clanChatNotification()) return;
+		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
 		String joinerName = clanMemberLeft.getClanMember().getName().toLowerCase().replace('\u00A0', ' ');
 		String joinerPrevName = "";
@@ -132,52 +139,50 @@ public class ChatChannelWatcherPlugin extends Plugin
 		handleNotification(joinerName, joinerPrevName, true);
 	}
 
-	private void handleNotification(String name, String prevName, boolean joining)
-	{
-		List<String> playerNames = getPlayerNames();
-
-		if (playerNames.isEmpty()) return;
-		if (!playerNames.contains(name) && !playerNames.contains(prevName)) return;
-		// for our hashmap/api
-		String foundName = playerNames.contains(name) ? name : prevName;
-		// for our notification
-		String outName = Objects.equals(prevName, "") ? name : name + " (previously: " + prevName + ")";
-
-		if (lastNotification.getOrDefault(foundName, 0) + config.notificationDelay() >= (int)(System.currentTimeMillis() / 1000)) return;
-
-		String notificationMessage = joining ? config.joinNotification().replaceAll("\\{player}", outName) : config.leaveNotification().replaceAll("\\{player}", outName);
-
-		if (config.notificationMode() == NotificationMode.BOTH || config.notificationMode() == NotificationMode.DESKTOP) notifier.notify(notificationMessage);
-		if (config.notificationMode() == NotificationMode.BOTH || config.notificationMode() == NotificationMode.CHAT) client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "[Chat-Channel Watcher]: " + notificationMessage, null);
-
-		int timeStamp = (int)(System.currentTimeMillis() / 1000);
-		lastNotification.put(foundName, timeStamp);
-
-		if (!config.apiUrl().isEmpty()) {
-			ChatChannelEvent event = new ChatChannelEvent(foundName, joining, timeStamp);
-			sendApiEvent(event);
+	private void updatePlayerList() {
+		if (lastGetUpdate < System.currentTimeMillis() + 30000) {
+			lastGetUpdate = System.currentTimeMillis();
+			String names = ChatChannelWatcherAPI.getPlayerList(httpClient, config.getApiURL(), config.bearerToken());
+			configManager.setConfiguration("chatchannelwatcher", "playerlist", names);
 		}
 	}
 
-	private void sendApiEvent(ChatChannelEvent event)
+	private void handleNotification(String name, String prevName, boolean joining)
 	{
-		Request postRequest = new Request.Builder()
-				.url(config.apiUrl())
-				.header("Authorization", "Bearer: " + config.bearerToken())
-				.post(RequestBody.create(JSON, event.getJson()))
-				.build();
+		List<String> playerNames = getPlayerNames();
+		int timeStamp = (int)(System.currentTimeMillis() / 1000);
 
-		httpClient.newCall(postRequest).enqueue(new Callback() {
-			@Override
-			public void onFailure(Call call, IOException e) {
-				e.printStackTrace();
-			}
+		boolean containsName = playerNames.contains(name) || playerNames.contains(prevName);
 
-			@Override
-			public void onResponse(Call call, Response response) throws IOException {
-				response.close();
+		if (!config.postApiURL().isEmpty() && !containsName) {
+			ChatChannelEvent event = new ChatChannelEvent(name, joining, timeStamp, false);
+			ChatChannelWatcherAPI.postEvent(httpClient, config.postApiURL(), config.bearerToken(), event);
+			return;
+		}
+
+		if (containsName) {
+			// for our hashmap/api
+			String foundName = playerNames.contains(name) ? name : prevName;
+			// for our notification
+			String outName = Objects.equals(prevName, "") ? name : name + " (previously: " + prevName + ")";
+
+			if (lastNotification.getOrDefault(foundName, 0) + config.notificationDelay() >= (int) (System.currentTimeMillis() / 1000)) return;
+
+			String notificationMessage = joining ? config.joinNotification().replaceAll("\\{player}", outName) : config.leaveNotification().replaceAll("\\{player}", outName);
+
+			if (config.notificationMode() == NotificationMode.BOTH || config.notificationMode() == NotificationMode.DESKTOP)
+				notifier.notify(notificationMessage);
+			if (config.notificationMode() == NotificationMode.BOTH || config.notificationMode() == NotificationMode.CHAT)
+				client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "[Chat-Channel Watcher]: " + notificationMessage, null);
+
+			lastNotification.put(foundName, timeStamp);
+
+			// Make sure sendAllEndpoint isn't enabled otherwise we'll be sending duplicates requests
+			if (!config.postApiURL().isEmpty()) {
+				ChatChannelEvent event = new ChatChannelEvent(foundName, joining, timeStamp, true);
+				ChatChannelWatcherAPI.postEvent(httpClient, config.postApiURL(), config.bearerToken(), event);
 			}
-		});
+		}
 	}
 
 	// thanks chatchannel plugin :)
