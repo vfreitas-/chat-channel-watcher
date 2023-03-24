@@ -177,7 +177,6 @@ public class ChatChannelWatcherPlugin extends Plugin
 
 			lastNotification.put(foundName, timeStamp);
 
-			// Make sure sendAllEndpoint isn't enabled otherwise we'll be sending duplicates requests
 			if (!config.postApiURL().isEmpty()) {
 				ChatChannelEvent event = new ChatChannelEvent(foundName, joining, timeStamp, true);
 				ChatChannelWatcherAPI.postEvent(httpClient, config.postApiURL(), config.bearerToken(), event);
