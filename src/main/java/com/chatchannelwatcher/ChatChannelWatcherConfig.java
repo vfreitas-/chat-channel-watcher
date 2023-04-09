@@ -143,7 +143,8 @@ public interface ChatChannelWatcherConfig extends Config
 			keyName = "bearertoken",
 			name = "Bearer Token",
 			description = "Authorization token for API",
-			section = apiInfo
+			section = apiInfo,
+			secret = true
 	)
 	default String bearerToken()
 	{

@@ -9,8 +9,6 @@ public class ChatChannelWatcherAPI {
 
     public static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
 
-    public String body;
-
     public static void postEvent(OkHttpClient httpClient, String url, String token, ChatChannelEvent event)
     {
         Request postRequest = new Request.Builder()

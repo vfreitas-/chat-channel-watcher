@@ -4,6 +4,7 @@ import com.google.inject.Provides;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
+import net.runelite.api.ChatPlayer;
 import net.runelite.api.Client;
 import net.runelite.api.ScriptID;
 import net.runelite.api.events.*;
@@ -16,6 +17,7 @@ import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.client.util.Text;
 import okhttp3.*;
 
 import java.awt.Color;
@@ -23,6 +25,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @PluginDescriptor(
@@ -48,7 +51,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 	@Inject
 	private OkHttpClient httpClient;
 
-	public long lastGetUpdate = 0;
+	public long lastUpdateTimestamp = 0;
 
 	HashMap<String, Integer> lastNotification = new HashMap<>();
 
@@ -80,37 +83,27 @@ public class ChatChannelWatcherPlugin extends Plugin
 	@Subscribe
 	public void onScriptPostFired(ScriptPostFired event)
 	{
-		if (event.getScriptId() == ScriptID.FRIENDS_CHAT_CHANNEL_REBUILD)
-		{
+		if (event.getScriptId() == ScriptID.FRIENDS_CHAT_CHANNEL_REBUILD) {
 			if (config.highlight()) colourHighlightedPlayers(config.highlightColour());
 		}
 	}
 
 	@Subscribe
-	public void onFriendsChatMemberJoined(FriendsChatMemberJoined member)
+	public void onFriendsChatMemberJoined(FriendsChatMemberJoined friendsChatMemberJoined)
 	{
 		if (!config.friendChatNotification()) return;
 		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
-		String joinerName = member.getMember().getName().toLowerCase().replace('\u00A0', ' ');
-		String joinerPrevName = "";
-		if (config.prevName() && member.getMember().getPrevName() != null) joinerPrevName = member.getMember().getPrevName().toLowerCase().replace('\u00A0', ' ');
-
-		handleNotification(joinerName, joinerPrevName, true);
+		handleChangeEvent(friendsChatMemberJoined.getMember(), true);
 	}
 
-
 	@Subscribe
-	public void onFriendsChatMemberLeft(FriendsChatMemberLeft member)
+	public void onFriendsChatMemberLeft(FriendsChatMemberLeft friendsChatMemberLeft)
 	{
 		if (!config.friendChatNotification()) return;
 		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
-		String leaverName = member.getMember().getName().toLowerCase().replace('\u00A0', ' ');
-		String leaverPrevName = "";
-		if (config.prevName() && member.getMember().getPrevName() != null) leaverPrevName = member.getMember().getPrevName().toLowerCase().replace('\u00A0', ' ');
-
-		handleNotification(leaverName, leaverPrevName, false);
+		handleChangeEvent(friendsChatMemberLeft.getMember(), false);
 	}
 
 	@Subscribe
@@ -119,11 +112,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 		if (!config.clanChatNotification()) return;
 		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
-		String joinerName = clanMemberJoined.getClanMember().getName().toLowerCase().replace('\u00A0', ' ');
-		String joinerPrevName = "";
-		if (config.prevName() && clanMemberJoined.getClanMember().getPrevName() != null) joinerPrevName = clanMemberJoined.getClanMember().getPrevName().toLowerCase().replace('\u00A0', ' ');
-
-		handleNotification(joinerName, joinerPrevName, true);
+		handleChangeEvent(clanMemberJoined.getClanMember(), true);
 	}
 
 	@Subscribe
@@ -132,18 +121,24 @@ public class ChatChannelWatcherPlugin extends Plugin
 		if (!config.clanChatNotification()) return;
 		if (!config.getApiURL().isEmpty()) updatePlayerList();
 
-		String joinerName = clanMemberLeft.getClanMember().getName().toLowerCase().replace('\u00A0', ' ');
-		String joinerPrevName = "";
-		if (config.prevName() && clanMemberLeft.getClanMember().getPrevName() != null) joinerPrevName = clanMemberLeft.getClanMember().getPrevName().toLowerCase().replace('\u00A0', ' ');
-
-		handleNotification(joinerName, joinerPrevName, true);
+		handleChangeEvent(clanMemberLeft.getClanMember(), false);
 	}
 
-	private void updatePlayerList() {
-		if (lastGetUpdate < System.currentTimeMillis() + 30000) {
-			lastGetUpdate = System.currentTimeMillis();
+	public void handleChangeEvent(ChatPlayer player, boolean joining)
+	{
+		String name = Text.toJagexName(player.getName().toLowerCase());
+		String previousName = "";
+		if (config.prevName() && player.getPrevName() != null) previousName = Text.toJagexName(player.getPrevName().toLowerCase());
+
+		handleNotification(name, previousName, joining);
+	}
+
+	private void updatePlayerList()
+	{
+		if (lastUpdateTimestamp + TimeUnit.SECONDS.toMillis(30) < System.currentTimeMillis()) {
+			lastUpdateTimestamp = System.currentTimeMillis();
 			String names = ChatChannelWatcherAPI.getPlayerList(httpClient, config.getApiURL(), config.bearerToken());
-			configManager.setConfiguration("chatchannelwatcher", "playerlist", names);
+			configManager.setConfiguration("chatchannelwatcher", "playerlist", names); // TODO: make it so this visually updates without need to restart client (plugin needs custom panel)
 		}
 	}
 
@@ -166,7 +161,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 			// for our notification
 			String outName = Objects.equals(prevName, "") ? name : name + " (previously: " + prevName + ")";
 
-			if (lastNotification.getOrDefault(foundName, 0) + config.notificationDelay() >= (int) (System.currentTimeMillis() / 1000)) return;
+			if (lastNotification.getOrDefault(foundName, 0) + config.notificationDelay() >= (int) (System.currentTimeMillis() / TimeUnit.SECONDS.toMillis(1))) return;
 
 			String notificationMessage = joining ? config.joinNotification().replaceAll("\\{player}", outName) : config.leaveNotification().replaceAll("\\{player}", outName);
 
@@ -195,7 +190,7 @@ public class ChatChannelWatcherPlugin extends Plugin
 		{
 			Widget listWidget = chatList.getChild(i);
 			String memberName = listWidget.getText().toLowerCase();
-			if(getPlayerNames().contains(memberName)) listWidget.setTextColor(highlightColour.getRGB());
+			if (getPlayerNames().contains(memberName)) listWidget.setTextColor(highlightColour.getRGB());
 		}
 	}
 
