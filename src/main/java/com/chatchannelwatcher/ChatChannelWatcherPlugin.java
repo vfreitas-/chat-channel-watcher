@@ -147,9 +147,9 @@ public class ChatChannelWatcherPlugin extends Plugin
 		List<String> playerNames = getPlayerNames();
 		int timeStamp = (int)(System.currentTimeMillis() / 1000);
 
-		boolean containsName = playerNames.contains(name) || playerNames.contains(prevName);
+		boolean containsName = playerNames.contains(name) || !Objects.equals(prevName, "") && playerNames.contains(prevName);
 
-		if (!config.postApiURL().isEmpty() && !containsName) {
+		if (!config.postApiURL().isEmpty() && (!containsName || playerNames.isEmpty())) {
 			ChatChannelEvent event = new ChatChannelEvent(name, joining, timeStamp, false);
 			ChatChannelWatcherAPI.postEvent(httpClient, config.postApiURL(), config.bearerToken(), event);
 			return;
